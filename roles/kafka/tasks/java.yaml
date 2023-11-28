@@ -1,0 +1,35 @@
+---
+
+- name: Create the installation directory
+  file:
+    path: "{{ java_install_dir }}"
+    state: directory
+
+- name: Download Java tar.gz archive
+  get_url:
+    url: "{{ java_url }}"
+    dest: "{{ java_install_dir }}/jdk.tar.gz"
+
+- name: Extract Java archive
+  ansible.builtin.unarchive:
+    src: "{{ java_install_dir }}/jdk.tar.gz"
+    dest: "{{ java_install_dir }}"
+    remote_src: yes
+    creates: "{{ java_home }}"
+    owner: kafka
+    group: kafka
+
+
+- name: Generate content from template
+  template:
+    src: profile.j2
+    dest: /tmp/.profile
+  delegate_to: localhost
+
+
+- name: Add JAVA_HOME and update PATH for kafka user
+  ansible.builtin.blockinfile:
+    block: "{{ lookup('ansible.builtin.file', '/tmp/.profile') }}"
+    path: "/home/kafka/.profile"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK"
+    insertbefore: EOF

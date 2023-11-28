@@ -1,0 +1,93 @@
+---
+
+#- name: Generate zookeeper script from template
+#  template:
+#    src: zookeeper_script.sh.j2
+#    dest: /tmp/zookeeper_script.sh
+#  delegate_to: localhost
+#
+#- name: Check if zookeeper has already been downloaded
+#  ansible.builtin.stat:
+#    path: /opt/apache-zookeeper-{{ zookeeper_version }}-bin.tar.gz
+#  register: zookeeper_archive
+#
+#- name: Copy and execute script
+#  script:
+#    cmd: /tmp/zookeeper_script.sh
+#  when: not zookeeper_archive.stat.exists
+
+- name: Download ZooKeeper archive
+  ansible.builtin.get_url:
+    url: "https://archive.apache.org/dist/zookeeper/zookeeper-{{ zookeeper_version }}/apache-zookeeper-{{ zookeeper_version }}-bin.tar.gz"
+    dest: /opt
+    mode: 0644
+
+- name: Extract ZooKeeper archive
+  ansible.builtin.unarchive:
+    src: "/opt/apache-zookeeper-{{ zookeeper_version }}-bin.tar.gz"
+    dest: /opt
+    remote_src: yes
+    creates: "/opt/apache-zookeeper-{{ zookeeper_version }}-bin"  # Use 'creates' to check if extraction is necessary
+
+- name: Create symbolic link
+  ansible.builtin.file:
+    src: "/opt/apache-zookeeper-{{ zookeeper_version }}-bin"
+    dest: /opt/zookeeper
+    state: link
+
+- name: Set ownership of ZooKeeper directory
+  ansible.builtin.file:
+    path: "/opt/apache-zookeeper-{{ zookeeper_version }}-bin"
+    state: directory
+    owner: zookeeper
+    group: zookeeper
+    recurse: true
+
+- name: Copy zoo.cfg from zoo_sample.cfg
+  ansible.builtin.command:
+    cmd: cp /opt/zookeeper/conf/zoo_sample.cfg /opt/zookeeper/conf/zoo.cfg
+  args:
+    creates: /opt/zookeeper/conf/zoo.cfg  # Use 'creates' to check if copying is necessary
+
+- name: Update content of /opt/zookeeper/conf/zoo.cfg
+  template:
+    src: "zoo.cfg.j2"
+    dest: "/opt/zookeeper/conf/zoo.cfg"
+    backup: true
+  #vars:
+  #  zookeeper_servers: "{{ zookeeper_servers }}"
+
+- name: Create path for myid file
+  ansible.builtin.file:
+    path: "/opt/zookeeper/data/zookeeper"
+    state: directory
+    owner: zookeeper
+    group: zookeeper
+
+- name: Populate myid
+  template:
+    src: myid.j2
+    dest: "/opt/zookeeper/data/zookeeper/myid"
+    owner: zookeeper
+    group: zookeeper
+
+- name: Create zookeeper service
+  template:
+    src: zookeeper.service.j2
+    dest: /etc/systemd/system/zookeeper.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd  # Notify the handler to reload systemd after creating the service file
+
+- name: Start zookeeper service
+  ansible.builtin.systemd:
+    name: zookeeper
+    state: started
+
+- name: Enable the zookeeper service to start on boot
+  ansible.builtin.systemd:
+    name: zookeeper
+    enabled: true
+

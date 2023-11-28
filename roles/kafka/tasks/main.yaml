@@ -1,0 +1,22 @@
+---
+
+- name: Consumer bootstrap servers (ip and port)
+  set_fact:
+    consumer_bootstrap_servers: "{{ groups['kafka'] | map('extract', hostvars, ['ansible_host']) | map('regex_replace', '(.+)$', '\\1:' + kafka_consumer_bootstrap_server_port|string) | list | join(',') }}"
+
+- name: Producer bootstrap servers (ip and port)
+  set_fact:
+    producer_bootstrap_servers: "{{ groups['zookeeper'] | map('extract', hostvars, ['ansible_host']) | map('regex_replace', '(.+)$', '\\1:' + kafka_producer_bootstrap_server_port|string) | list | join(',') }}"
+
+- name: Zookeeper connect servers (ip and port)
+  set_fact:
+    zookeeper_connect_servers: "{{ groups['zookeeper'] | map('extract', hostvars, ['ansible_host']) | map('regex_replace', '(.+)$', '\\1:' + zookeeper_connect_port|string) | list | join(',') }}"
+
+- name: Operating system maintenance
+  import_tasks: ./system.yaml
+
+#- name: Java configuration
+#  import_tasks: ./java.yaml
+
+#- name: kafka configuration
+#  import_tasks: ./kafka.yaml

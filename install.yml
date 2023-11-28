@@ -1,0 +1,13 @@
+---
+
+- name: Playbook to install and configure zookeeper cluster
+  hosts: zookeeper
+  gather_facts: true
+  roles:
+    - role: zookeeper
+
+- name: Playbook to install and configure kafka cluster
+  hosts: kafka
+  gather_facts: true
+  roles:
+    - role: kafka

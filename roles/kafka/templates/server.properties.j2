@@ -1,0 +1,29 @@
+broker.id={{ broker_id }}
+
+listeners=PLAINTEXT://{{ hostvars[inventory_hostname]['ansible_host'] }}:9092
+# per il nodo 10.206.129.109-> listeners=PLAINTEXT://10.206.129.109:9092
+# per il nodo 10.206.129.74  -> listeners=PLAINTEXT://10.206.129.74:9092
+# per il nodo 10.206.129.88-> listeners=PLAINTEXT://10.206.129.88:9092
+
+num.network.threads=3
+num.io.threads=8
+socket.send.buffer.bytes=102400
+socket.receive.buffer.bytes=102400
+socket.request.max.bytes=104857600
+log.dirs=/tmp/kafka-logs
+num.partitions=1
+num.recovery.threads.per.data.dir=1
+offsets.topic.replication.factor=1
+transaction.state.log.replication.factor=1
+transaction.state.log.min.isr=1
+log.flush.interval.messages=10000
+log.retention.hours=168
+log.retention.check.interval.ms=300000
+#zookeeper.connect=10.206.129.126:2181,10.206.129.79:2181,10.206.129.90:2181
+#zookeeper.connect={{ groups['zookeeper'] | map('extract', hostvars, ['ansible_host']) | list | join(',') }}
+zookeeper.connect={{ zookeeper_connect_servers }}
+zookeeper.connection.timeout.ms=18000
+group.initial.rebalance.delay.ms=0
+controlled.shutdown.max.retries=3
+controlled.shutdown.retry.backoff.ms=5000
+log.flush.scheduler.interval.ms=1000

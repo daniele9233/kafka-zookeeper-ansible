@@ -1,0 +1,14 @@
+---
+
+- name: Gather ZooKeeper servers information
+  set_fact:
+    zookeeper_servers: "{{ groups['zookeeper'] | map('extract', hostvars, ['ansible_host']) | list }}"
+
+- name: Operating system maintenance
+  import_tasks: ./system.yaml
+
+- name: Java configuration
+  import_tasks: ./java.yaml
+
+- name: zookeeper configuration
+  import_tasks: ./zookeeper.yaml

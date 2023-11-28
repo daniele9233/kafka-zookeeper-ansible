@@ -1,0 +1,25 @@
+---
+
+#- name: Aggiorna il repository del sistema
+#  apt:
+#    update_cache: yes
+
+#- name: Effettua l'upgrade dei pacchetti
+#  apt:
+#    upgrade: yes
+
+#- name: Rimuovi i pacchetti non necessari
+#  apt:
+#    autoremove: yes
+
+- name: Installa bash-completion
+  apt:
+    name: bash-com*
+    state: present
+
+- name: Add zookeeper user
+  user:
+    name: zookeeper
+    createhome: yes
+    shell: /bin/bash
+    password: "{{ zookeeper_user_password | password_hash('sha512') }}"

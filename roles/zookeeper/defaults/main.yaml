@@ -1,0 +1,10 @@
+---
+
+zookeeper_user_password: zookeeper
+
+java_version: "zulu11.62.17-ca-jdk11.0.18-linux_x64"
+java_url: "https://cdn.azul.com/zulu/bin/{{ java_version }}.tar.gz"
+java_install_dir: "/usr/lib/jvm"
+java_home: "{{ java_install_dir }}/{{ java_version }}"
+
+zookeeper_version: "3.8.1"
