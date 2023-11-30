@@ -15,8 +15,8 @@
 - name: Operating system maintenance
   import_tasks: ./system.yaml
 
-#- name: Java configuration
-#  import_tasks: ./java.yaml
+- name: Java configuration
+  import_tasks: ./java.yaml
 
-#- name: kafka configuration
-#  import_tasks: ./kafka.yaml
+- name: kafka configuration
+  import_tasks: ./kafka.yaml
