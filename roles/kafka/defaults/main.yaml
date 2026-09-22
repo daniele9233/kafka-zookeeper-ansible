@@ -32,11 +32,18 @@ kafka_consumer_bootstrap_server_port: "{{ kafka_broker_port }}"
 kafka_producer_bootstrap_server_port: "{{ kafka_broker_port }}"
 zookeeper_connect_port: 2181
 
-kafka_heap_opts: "-Xmx12G -Xms12G"
+# Heap effettivamente in uso in collaudo: sono i default di Kafka
+# (-Xmx1G -Xms1G), nessun override.
+kafka_heap_opts: "-Xmx1G -Xms1G"
 
 kafka_num_partitions: 1
-kafka_default_replication_factor: 3
 kafka_min_insync_replicas: 2
+kafka_offsets_topic_replication_factor: 3
+kafka_transaction_state_log_replication_factor: 3
+kafka_transaction_state_log_min_isr: 2
+
+# Usato solo nella riga commentata di producer.properties, come in collaudo.
+kafka_transactional_id: "sintesi-prod-app"
 
 # ---------------------------------------------------------------------------
 # Autenticazione SASL_SSL + SCRAM-SHA-512

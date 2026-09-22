@@ -1,32 +1,17 @@
 ---
 
-- name: Check whether ZooKeeper is already installed
-  ansible.builtin.stat:
-    path: "{{ zookeeper_install_dir }}/bin/zkServer.sh"
-  register: zookeeper_installed
-
 - name: Download ZooKeeper archive
   ansible.builtin.get_url:
-    url: "https://archive.apache.org/dist/zookeeper/zookeeper-{{ zookeeper_version }}/{{ zookeeper_archive_basename }}.tar.gz"
-    dest: "/opt/{{ zookeeper_archive_basename }}.tar.gz"
+    url: "https://archive.apache.org/dist/zookeeper/zookeeper-{{ zookeeper_version }}/{{ zookeeper_install_dir | basename }}.tar.gz"
+    dest: "/opt/{{ zookeeper_install_dir | basename }}.tar.gz"
     mode: '0644'
-  when: not zookeeper_installed.stat.exists
 
 - name: Extract ZooKeeper archive
   ansible.builtin.unarchive:
-    src: "/opt/{{ zookeeper_archive_basename }}.tar.gz"
+    src: "/opt/{{ zookeeper_install_dir | basename }}.tar.gz"
     dest: /opt
     remote_src: yes
-  when: not zookeeper_installed.stat.exists
-
-- name: Rename the extracted directory to the target install directory
-  ansible.builtin.command:
-    cmd: "mv /opt/{{ zookeeper_archive_basename }} {{ zookeeper_install_dir }}"
-    # Evita che un'installazione parziale finisca annidata dentro se stessa.
-    creates: "{{ zookeeper_install_dir }}"
-  when:
-    - not zookeeper_installed.stat.exists
-    - zookeeper_archive_basename != zookeeper_install_dir | basename
+    creates: "{{ zookeeper_install_dir }}"  # Use 'creates' to check if extraction is necessary
 
 - name: Create symbolic link
   ansible.builtin.file:

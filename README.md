@@ -21,12 +21,13 @@ nodo perche' viene usato come `CN` e come `SAN DNS.1` nei certificati.
 
 | Componente | Versione   | Percorso installazione        | Symlink          |
 |------------|------------|-------------------------------|------------------|
-| ZooKeeper  | 3.8.1      | `/opt/apache-zookeeper-3.8.1` | `/opt/zookeeper` |
+| ZooKeeper  | 3.8.1      | `/opt/apache-zookeeper-3.8.1-bin` | `/opt/zookeeper` |
 | Kafka      | 2.13-3.4.0 | `/opt/kafka_2.13-3.4.0`       | `/opt/kafka`     |
 | Java       | Zulu JDK 11| `/usr/lib/jvm/zulu11...`      | -                |
 
-Il tarball ufficiale di ZooKeeper si estrae in `apache-zookeeper-3.8.1-bin`:
-il ruolo lo rinomina in `/opt/apache-zookeeper-3.8.1` come da requisito.
+I percorsi sono gli stessi del collaudo: il tarball ufficiale di ZooKeeper si
+estrae in `apache-zookeeper-3.8.1-bin` e quella resta la directory di
+installazione, raggiunta tramite il symlink `/opt/zookeeper`.
 
 ## Esecuzione
 
@@ -50,6 +51,8 @@ Tutti i parametri stanno in `roles/kafka/defaults/main.yaml`
 | `kafka_sasl_mechanism`      | `SCRAM-SHA-512`    | Meccanismo SASL                              |
 | `kafka_security_protocol`   | `SASL_SSL`         | Protocollo del listener                      |
 | `kafka_num_partitions`      | `1`                | `num.partitions` di default                  |
+| `kafka_heap_opts`           | `-Xmx1G -Xms1G`    | Heap, come in collaudo (default Kafka)       |
+| `kafka_transactional_id`    | `sintesi-prod-app` | Solo nella riga commentata del producer      |
 | `kafka_ca_subject`          | `.../CN=Kafka-Test-Root-CA` | Subject della Root CA               |
 
 ## PKI: come vengono generati i certificati
@@ -161,3 +164,34 @@ l'operazione crea il topic interno `__transaction_state`, verificabile con:
 | `tasks/ssl.yaml`    | Root CA, certificati broker, keystore e truststore |
 | `tasks/scram.yaml`  | Censimento dell'utente SCRAM su ZooKeeper          |
 | `tasks/service.yaml`| Unit systemd, avvio e abilitazione al boot         |
+
+## Parità con il collaudo
+
+I template sono allineati ai file in esercizio su `kafka-zkp01c`: il rendering
+di produzione e il file di collaudo sono identici riga per riga, a meno di IP,
+hostname, `broker.id`, utente e password. Le uniche differenze volute sono:
+
+1. **`zookeeper.service` ha la sezione `[Install]`**, assente in collaudo.
+   Senza, `systemctl enable zookeeper` fallisce e ZooKeeper non riparte dopo un
+   riavvio del nodo; il playbook ha un task che abilita il servizio al boot e
+   senza `[Install]` si interromperebbe con errore.
+2. **Rimossi i commenti che citano la vecchia rete `10.206.129.x`** e le due
+   righe `#zookeeper.connect=` obsolete (una delle quali senza porte): sono
+   riferimenti a un ambiente dismesso.
+3. **`transactional.id`** nella riga commentata del producer passa da
+   `sintesi-coll-app` a `sintesi-prod-app`.
+4. **JDK Zulu 11.0.30** invece della 11.0.18 del collaudo: stessa linea, solo
+   più aggiornata. Per allineare anche questo basta cambiare `java_version`.
+
+### Due punti da valutare
+
+Questi sono replicati **identici al collaudo**, ma vale la pena una riflessione:
+
+- `default.replication.factor` è commentato, quindi vale `1`, mentre
+  `min.insync.replicas=2`. Un topic creato senza `--replication-factor`
+  esplicito nasce con una sola replica e le scritture con `acks=all` falliscono
+  con `NOT_ENOUGH_REPLICAS`. Finché i topic si creano indicando sempre
+  `--replication-factor 3` non succede nulla.
+- `consumer.properties` e `producer.properties` non contengono la
+  configurazione SASL_SSL, quindi non possono connettersi al listener: per gli
+  script CLI si usa `/root/client.properties`, che invece è completo.

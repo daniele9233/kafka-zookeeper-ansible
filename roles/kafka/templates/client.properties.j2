@@ -1,11 +1,6 @@
-# Profilo per gli script di amministrazione CLI eseguiti da console locale.
-# Punta al truststore del nodo su cui viene installato.
 security.protocol={{ kafka_security_protocol }}
 sasl.mechanism={{ kafka_sasl_mechanism }}
-sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required \
-  username="{{ kafka_sasl_admin_user }}" \
-  password="{{ kafka_sasl_admin_password }}";
-
+sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="{{ kafka_sasl_admin_user }}" password="{{ kafka_sasl_admin_password }}";
 ssl.truststore.location={{ kafka_broker_ssl_dir }}/{{ kafka_broker_name }}.truststore.p12
 ssl.truststore.password={{ kafka_ssl_password }}
 ssl.truststore.type=PKCS12

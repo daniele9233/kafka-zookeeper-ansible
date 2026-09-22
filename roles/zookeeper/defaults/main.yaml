@@ -9,12 +9,10 @@ java_home: "{{ java_install_dir }}/{{ java_version }}"
 
 zookeeper_version: "3.8.1"
 
-# Nome della directory contenuta nel tarball ufficiale (apache-zookeeper-X.Y.Z-bin).
-zookeeper_archive_basename: "apache-zookeeper-{{ zookeeper_version }}-bin"
-
-# Directory di installazione finale richiesta: /opt/apache-zookeeper-3.8.1
-# (l'archivio viene rinominato dopo l'estrazione).
-zookeeper_install_dir: "/opt/apache-zookeeper-{{ zookeeper_version }}"
+# Directory prodotta dal tarball ufficiale, usata come directory di
+# installazione: e' il layout in uso in collaudo
+# (/opt/apache-zookeeper-3.8.1-bin con symlink /opt/zookeeper).
+zookeeper_install_dir: "/opt/apache-zookeeper-{{ zookeeper_version }}-bin"
 zookeeper_home: "/opt/zookeeper"
 
 zookeeper_data_dir: "{{ zookeeper_home }}/data/zookeeper"

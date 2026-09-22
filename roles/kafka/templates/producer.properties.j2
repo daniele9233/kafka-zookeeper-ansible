@@ -45,14 +45,10 @@ compression.type=none
 # the total bytes of memory the producer can use to buffer records waiting to be sent to the server
 #buffer.memory=
 
-############################# Security #############################
+#security.protocol=PLAINTEXT
 
-security.protocol={{ kafka_security_protocol }}
-sasl.mechanism={{ kafka_sasl_mechanism }}
-sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required \
-  username="{{ kafka_sasl_admin_user }}" \
-  password="{{ kafka_sasl_admin_password }}";
-
-ssl.truststore.location={{ kafka_broker_ssl_dir }}/{{ kafka_broker_name }}.truststore.p12
-ssl.truststore.password={{ kafka_ssl_password }}
-ssl.truststore.type=PKCS12
+#transactional.id={{ kafka_transactional_id }}
+#enable.idempotence=true
+#acks=all
+#retries=2147483647
+#max.in.flight.requests.per.connection=5
