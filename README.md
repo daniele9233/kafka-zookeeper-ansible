@@ -158,43 +158,96 @@ Su ogni nodo viene creato `/root/client.properties`, gia' configurato per gli
 script CLI e puntato al truststore locale.
 
 ```bash
-# Stato del servizio
-systemctl status kafka -l --no-pager
-journalctl -u kafka -n 30 --no-pager
+# Stato dei servizi e quorum ZooKeeper (un leader, due follower)
+systemctl is-active zookeeper kafka
+echo mntr | timeout 3 nc 10.109.15.84 2181 | grep -E "zk_server_state|zk_followers"
 
-# Raggiungibilita' dei 3 broker
+# Broker registrati: l'elenco piu' affidabile arriva da ZooKeeper
+/opt/kafka/bin/zookeeper-shell.sh 10.109.15.84:2181 ls /brokers/ids
+
+# Raggiungibilita' dei 3 broker via API
+# (il formato e' "(id: 1 rack: null)", con i due punti: non "id=1")
 /opt/kafka/bin/kafka-broker-api-versions.sh \
   --bootstrap-server 10.109.15.84:9092,10.109.15.85:9092,10.109.15.86:9092 \
-  --command-config /root/client.properties | grep -E "id=(1|2|3)"
+  --command-config /root/client.properties | grep "(id:"
 
-# Partizioni sotto-replicate (output vuoto = tutto ok)
+# Certificato realmente servito in TLS, con verifica della catena e del SAN
+# sull'IP. Atteso: "Verify return code: 0 (ok)".
+openssl s_client -connect 10.109.15.84:9092 \
+  -CAfile /opt/kafka/config/ssl/ca/ca.crt -verify_ip 10.109.15.84 \
+  </dev/null 2>&1 | grep -E "subject=|Verify return code"
+
+# Credenziali SCRAM censite in ZooKeeper
+/opt/kafka/bin/kafka-configs.sh \
+  --zookeeper 10.109.15.84:2181,10.109.15.85:2181,10.109.15.86:2181 \
+  --describe --entity-type users --entity-name kafkaadmin
+
+# Partizioni sotto-replicate e non disponibili (output vuoto = tutto ok)
 /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server 10.109.15.84:9092 \
   --command-config /root/client.properties \
   --describe --under-replicated-partitions
-
-# Test di replica e transazionalita'
-/opt/kafka/bin/kafka-topics.sh \
-  --bootstrap-server 10.109.15.84:9092 \
-  --command-config /root/client.properties \
-  --create --topic test-tx --partitions 3 --replication-factor 3
-
-/opt/kafka/bin/kafka-console-producer.sh \
-  --bootstrap-server 10.109.15.84:9092 \
-  --producer.config /root/client.properties \
-  --topic test-tx \
-  --producer-property transactional.id=test-tx-1 \
-  --producer-property enable.idempotence=true
 ```
 
-Digitare alcune righe di prova e premere `Ctrl+D` per chiudere la transazione;
-l'operazione crea il topic interno `__transaction_state`, verificabile con:
+### Test di replica e transazionalita'
+
+`--replication-factor 3` e' obbligatorio: `default.replication.factor` e'
+commentato (come in collaudo), quindi un topic creato senza indicarlo nasce
+con una replica sola e, con `min.insync.replicas=2`, le scritture con
+`acks=all` falliscono con `NOT_ENOUGH_REPLICAS`.
 
 ```bash
 /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server 10.109.15.84:9092 \
   --command-config /root/client.properties \
-  --describe --topic __transaction_state | head -5
+  --create --topic test-tx --partitions 3 --replication-factor 3
+```
+
+Attenzione: `kafka-console-producer.sh` **non sa gestire le transazioni**.
+Passargli `transactional.id` rende il producer transazionale ma lo strumento
+non chiama mai `initTransactions()`, quindi fallisce con
+`Cannot add partition ... before completing a call to initTransactions`.
+Per un vero test transazionale si usa `kafka-producer-perf-test.sh`:
+
+```bash
+/opt/kafka/bin/kafka-producer-perf-test.sh \
+  --topic test-tx \
+  --num-records 300 --record-size 128 --throughput 100 \
+  --producer.config /root/client.properties \
+  --producer-props bootstrap.servers=10.109.15.84:9092 acks=all \
+  --transactional-id test-tx-1 \
+  --transaction-duration-ms 1000
+```
+
+Rilettura dei soli messaggi committati, da un nodo diverso da quello che ha
+prodotto (verifica insieme transazioni, replica e traffico inter-broker):
+
+```bash
+/opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server 10.109.15.85:9092 \
+  --consumer.config /root/client.properties --topic test-tx \
+  --from-beginning --max-messages 10 \
+  --isolation-level read_committed --timeout-ms 20000
+```
+
+Il primo uso transazionale crea il topic interno `__transaction_state`, che
+deve avere `ReplicationFactor: 3` e `min.insync.replicas=2`:
+
+```bash
+/opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server 10.109.15.84:9092 \
+  --command-config /root/client.properties \
+  --describe --topic __transaction_state | head -2
+```
+
+Per un invio semplice non transazionale `kafka-console-producer.sh` va benone,
+purche' senza `transactional.id`:
+
+```bash
+printf 'riga1\nriga2\nriga3\n' | /opt/kafka/bin/kafka-console-producer.sh \
+  --bootstrap-server 10.109.15.84:9092 \
+  --producer.config /root/client.properties --topic test-tx \
+  --producer-property acks=all
 ```
 
 ## Struttura del ruolo kafka
