@@ -1,14 +1,30 @@
 ---
 
+- name: Check whether ZooKeeper is already installed
+  ansible.builtin.stat:
+    path: "{{ zookeeper_install_dir }}/bin/zkServer.sh"
+  register: zookeeper_installed
+
+- name: Check whether the ZooKeeper archive has already been downloaded
+  ansible.builtin.stat:
+    path: "{{ zookeeper_archive_path }}"
+  register: zookeeper_archive
+
 - name: Download ZooKeeper archive
   ansible.builtin.get_url:
-    url: "https://archive.apache.org/dist/zookeeper/zookeeper-{{ zookeeper_version }}/{{ zookeeper_install_dir | basename }}.tar.gz"
-    dest: "/opt/{{ zookeeper_install_dir | basename }}.tar.gz"
+    url: "{{ zookeeper_url }}"
+    dest: "{{ zookeeper_archive_path }}"
     mode: '0644'
+    timeout: "{{ download_timeout }}"
+  async: "{{ download_async_timeout }}"
+  poll: "{{ download_poll_interval }}"
+  when:
+    - not zookeeper_installed.stat.exists
+    - not zookeeper_archive.stat.exists
 
 - name: Extract ZooKeeper archive
   ansible.builtin.unarchive:
-    src: "/opt/{{ zookeeper_install_dir | basename }}.tar.gz"
+    src: "{{ zookeeper_archive_path }}"
     dest: /opt
     remote_src: yes
     creates: "{{ zookeeper_install_dir }}"  # Use 'creates' to check if extraction is necessary
@@ -18,14 +34,6 @@
     src: "{{ zookeeper_install_dir }}"
     dest: "{{ zookeeper_home }}"
     state: link
-
-- name: Set ownership of ZooKeeper directory
-  ansible.builtin.file:
-    path: "{{ zookeeper_install_dir }}"
-    state: directory
-    owner: zookeeper
-    group: zookeeper
-    recurse: true
 
 - name: Copy zoo.cfg from zoo_sample.cfg
   ansible.builtin.command:
@@ -54,6 +62,14 @@
     dest: "{{ zookeeper_data_dir }}/myid"
     owner: zookeeper
     group: zookeeper
+
+- name: Set ownership of ZooKeeper directory
+  ansible.builtin.file:
+    path: "{{ zookeeper_install_dir }}"
+    state: directory
+    owner: zookeeper
+    group: zookeeper
+    recurse: true
 
 - name: Create zookeeper service
   template:

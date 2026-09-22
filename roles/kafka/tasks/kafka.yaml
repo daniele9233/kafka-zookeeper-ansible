@@ -1,14 +1,32 @@
 ---
 
+- name: Check whether Kafka is already installed
+  ansible.builtin.stat:
+    path: "{{ kafka_install_dir }}/bin/kafka-server-start.sh"
+  register: kafka_installed
+
+- name: Check whether the Kafka archive has already been downloaded
+  ansible.builtin.stat:
+    path: "{{ kafka_archive_path }}"
+  register: kafka_archive
+
+# Oltre 100 MB da un mirror throttlato: 'async' impone un tetto massimo, senza
+# il quale il task puo' restare appeso a tempo indefinito.
 - name: Download Kafka archive
   ansible.builtin.get_url:
     url: "{{ kafka_url }}"
-    dest: "/opt/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+    dest: "{{ kafka_archive_path }}"
     mode: 0644
+    timeout: "{{ download_timeout }}"
+  async: "{{ download_async_timeout }}"
+  poll: "{{ download_poll_interval }}"
+  when:
+    - not kafka_installed.stat.exists
+    - not kafka_archive.stat.exists
 
 - name: Extract Kafka archive
   ansible.builtin.unarchive:
-    src: "/opt/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+    src: "{{ kafka_archive_path }}"
     dest: /opt
     remote_src: yes
     creates: "{{ kafka_install_dir }}"  # Use 'creates' to check if extraction is necessary

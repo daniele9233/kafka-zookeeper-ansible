@@ -5,3 +5,6 @@ pki/
 *.crt
 *.srl
 *.p12
+
+# Log delle esecuzioni Ansible
+ansible.log

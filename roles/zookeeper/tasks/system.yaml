@@ -22,4 +22,4 @@
     name: zookeeper
     createhome: yes
     shell: /bin/bash
-    password: "{{ zookeeper_user_password | password_hash('sha512') }}"
+    password: "{{ zookeeper_user_password | password_hash('sha512', zookeeper_user_password_salt) }}"

@@ -32,11 +32,54 @@ installazione, raggiunta tramite il symlink `/opt/zookeeper`.
 ## Esecuzione
 
 ```bash
-ansible-playbook -i inventories/inventory.ini install.yml
+ansible-playbook install.yml
 ```
 
+L'inventory e' gia' indicato in `ansible.cfg`, quindi `-i` non serve piu'.
 L'ordine delle operazioni e' vincolante: ZooKeeper viene avviato per primo,
 poi vengono create le credenziali SCRAM e solo dopo partono i broker.
+
+### Log
+
+Ogni esecuzione viene registrata in `./ansible.log` (`log_path` in
+`ansible.cfg`), con timestamp per ogni task. Il file e' escluso dal
+versionamento. Sono attivi anche i callback `profile_tasks` e `timer`, che
+stampano la durata di ogni task e il totale della run: servono a individuare
+subito i task lenti. Richiedono la collection `ansible.posix`; se manca,
+Ansible emette solo un warning e prosegue.
+
+### Tempi di installazione e download
+
+Il tarball di Kafka pesa oltre 100 MB e `archive.apache.org` e' throttlato:
+alla prima installazione il task `Download Kafka archive` puo' richiedere
+diversi minuti per nodo. Tre accorgimenti:
+
+- i download hanno un **tetto massimo** (`async`/`poll`, 30 minuti di default
+  in `download_async_timeout`) e un timeout di stallo sul socket
+  (`download_timeout`): non possono piu' restare appesi a tempo indefinito;
+- se l'archivio e' gia' in `/opt`, o il prodotto e' gia' installato, il
+  download viene **saltato del tutto**, senza nemmeno contattare il mirror;
+- per accorciare davvero i tempi, puntate a un mirror interno valorizzando
+  `kafka_mirror_url`, `zookeeper_mirror_url` e `java_url`. In alternativa
+  basta copiare a mano i tarball in `/opt` (`kafka_2.13-3.4.0.tgz`,
+  `apache-zookeeper-3.8.1-bin.tar.gz`) prima di lanciare il playbook.
+
+### Idempotenza
+
+Il playbook e' idempotente: la prima esecuzione installa, le successive
+riportano `changed=0`. Verificato eseguendolo tre volte di fila.
+
+Due correzioni sono state necessarie per ottenerlo:
+
+- `password_hash('sha512')` senza salt ne genera uno **casuale a ogni
+  chiamata**: l'hash cambiava ogni volta e il modulo `user` riscriveva la
+  password a ogni run. Ora si usa un salt fisso
+  (`kafka_user_password_salt`, `zookeeper_user_password_salt`), quindi
+  l'hash e' deterministico ma cambiare la password continua ad avere effetto;
+- il chown ricorsivo della directory ZooKeeper girava **prima** dei task che
+  creano `zoo.cfg`; il backup del file, creato come `root`, restava fuori e
+  veniva sistemato solo al giro successivo. Ora il chown e' l'ultimo passo
+  prima dei task di servizio.
 
 ## Credenziali e parametri
 

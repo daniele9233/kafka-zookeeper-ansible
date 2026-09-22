@@ -27,4 +27,4 @@
     name: kafka
     createhome: yes
     shell: /bin/bash
-    password: "{{ kafka_user_password | password_hash('sha512') }}"
+    password: "{{ kafka_user_password | password_hash('sha512', kafka_user_password_salt) }}"

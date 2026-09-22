@@ -1,6 +1,9 @@
 ---
 
 zookeeper_user_password: zookeeper
+# Salt fisso: senza, password_hash() ne genera uno casuale a ogni esecuzione,
+# l'hash cambia e il task risulta "changed" ad ogni run.
+zookeeper_user_password_salt: "zkpZookeeperSalt"
 
 java_version: "zulu11.86.19-ca-jdk11.0.30-linux_x64"
 java_url: "https://cdn.azul.com/zulu/bin/{{ java_version }}.tar.gz"
@@ -19,3 +22,11 @@ zookeeper_data_dir: "{{ zookeeper_home }}/data/zookeeper"
 zookeeper_client_port: 2181
 zookeeper_peer_port: 2888
 zookeeper_election_port: 3888
+
+zookeeper_mirror_url: "https://archive.apache.org/dist/zookeeper"
+zookeeper_url: "{{ zookeeper_mirror_url }}/zookeeper-{{ zookeeper_version }}/{{ zookeeper_install_dir | basename }}.tar.gz"
+zookeeper_archive_path: "/opt/{{ zookeeper_install_dir | basename }}.tar.gz"
+
+download_timeout: 60
+download_async_timeout: 1800
+download_poll_interval: 15

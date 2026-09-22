@@ -4,6 +4,9 @@
 # Utente di sistema
 # ---------------------------------------------------------------------------
 kafka_user_password: kafka
+# Salt fisso: senza, password_hash() ne genera uno casuale a ogni esecuzione,
+# l'hash cambia e il task risulta "changed" ad ogni run.
+kafka_user_password_salt: "kafkaZkpSalt01"
 
 # ---------------------------------------------------------------------------
 # Java
@@ -18,7 +21,12 @@ java_home: "{{ java_install_dir }}/{{ java_version }}"
 # ---------------------------------------------------------------------------
 scala_version: "2.13"
 kafka_version: "3.4.0"
-kafka_url: "https://archive.apache.org/dist/kafka/{{ kafka_version }}/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+# archive.apache.org e' throttlato e il tarball pesa oltre 100 MB per nodo:
+# valorizzare kafka_mirror_url per puntare a un mirror interno e' il modo piu'
+# efficace di accorciare i tempi di installazione.
+kafka_mirror_url: "https://archive.apache.org/dist/kafka"
+kafka_url: "{{ kafka_mirror_url }}/{{ kafka_version }}/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+kafka_archive_path: "/opt/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
 
 # Percorso fisico (kafka_2.13-3.4.0) usato per la generazione dei certificati,
 # e symlink standard usato dalle configurazioni e dai comandi di avvio.
@@ -81,3 +89,13 @@ kafka_truststore_alias: "kafka-test-root-ca"
 
 # Profilo per gli script di amministrazione CLI.
 kafka_client_properties_path: "/root/client.properties"
+
+# ---------------------------------------------------------------------------
+# Download
+# ---------------------------------------------------------------------------
+# timeout: stallo massimo sul socket.
+# async/poll: tetto massimo complessivo, altrimenti un mirror lento puo'
+# tenere il task appeso a tempo indefinito.
+download_timeout: 60
+download_async_timeout: 1800
+download_poll_interval: 15

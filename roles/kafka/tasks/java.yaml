@@ -5,10 +5,26 @@
     path: "{{ java_install_dir }}"
     state: directory
 
+- name: Check whether Java is already installed
+  ansible.builtin.stat:
+    path: "{{ java_home }}/bin/java"
+  register: java_installed
+
+- name: Check whether the Java archive has already been downloaded
+  ansible.builtin.stat:
+    path: "{{ java_install_dir }}/jdk.tar.gz"
+  register: java_archive
+
 - name: Download Java tar.gz archive
   get_url:
     url: "{{ java_url }}"
     dest: "{{ java_install_dir }}/jdk.tar.gz"
+    timeout: "{{ download_timeout }}"
+  async: "{{ download_async_timeout }}"
+  poll: "{{ download_poll_interval }}"
+  when:
+    - not java_installed.stat.exists
+    - not java_archive.stat.exists
 
 - name: Extract Java archive
   ansible.builtin.unarchive:
