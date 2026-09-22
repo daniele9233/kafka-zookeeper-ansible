@@ -9,6 +9,9 @@ Type=forking
 User=zookeeper
 Group=zookeeper
 Environment=JAVA_HOME={{ java_home }}
-ExecStart=/opt/zookeeper/bin/zkServer.sh start /opt/zookeeper/conf/zoo.cfg
-ExecStop=/opt/zookeeper/bin/zkServer.sh stop /opt/zookeeper/conf/zoo.cfg
-ExecReload=/opt/zookeeper/bin/zkServer.sh restart /opt/zookeeper/conf/zoo.cfg
+ExecStart={{ zookeeper_home }}/bin/zkServer.sh start {{ zookeeper_home }}/conf/zoo.cfg
+ExecStop={{ zookeeper_home }}/bin/zkServer.sh stop {{ zookeeper_home }}/conf/zoo.cfg
+ExecReload={{ zookeeper_home }}/bin/zkServer.sh restart {{ zookeeper_home }}/conf/zoo.cfg
+
+[Install]
+WantedBy=multi-user.target

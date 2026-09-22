@@ -1,0 +1,35 @@
+---
+# Provisioning delle credenziali SCRAM dell'utente inter-broker.
+#
+# Va eseguito PRIMA di avviare i broker in modalita' SASL_SSL: senza queste
+# credenziali in ZooKeeper i broker non riescono ad autenticarsi tra loro.
+# Si usa '--zookeeper' perche' '--bootstrap-server' richiederebbe una
+# connessione gia' autenticata, cioe' le credenziali che stiamo creando.
+
+- name: Check whether the SCRAM credentials already exist in ZooKeeper
+  ansible.builtin.command:
+    cmd: >-
+      {{ kafka_home }}/bin/kafka-configs.sh
+      --zookeeper {{ zookeeper_connect_servers }}
+      --describe
+      --entity-type users
+      --entity-name {{ kafka_sasl_admin_user }}
+  environment:
+    JAVA_HOME: "{{ java_home }}"
+  register: kafka_scram_credentials
+  changed_when: false
+  run_once: true
+
+- name: Create the SCRAM credentials for the inter-broker user
+  ansible.builtin.command:
+    cmd: >-
+      {{ kafka_home }}/bin/kafka-configs.sh
+      --zookeeper {{ zookeeper_connect_servers }}
+      --alter
+      --add-config '{{ kafka_sasl_mechanism }}=[password={{ kafka_sasl_admin_password }}]'
+      --entity-type users
+      --entity-name {{ kafka_sasl_admin_user }}
+  environment:
+    JAVA_HOME: "{{ java_home }}"
+  run_once: true
+  when: kafka_sasl_mechanism not in kafka_scram_credentials.stdout

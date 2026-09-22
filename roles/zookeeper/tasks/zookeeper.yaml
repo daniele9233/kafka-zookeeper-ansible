@@ -1,43 +1,42 @@
 ---
 
-#- name: Generate zookeeper script from template
-#  template:
-#    src: zookeeper_script.sh.j2
-#    dest: /tmp/zookeeper_script.sh
-#  delegate_to: localhost
-#
-#- name: Check if zookeeper has already been downloaded
-#  ansible.builtin.stat:
-#    path: /opt/apache-zookeeper-{{ zookeeper_version }}-bin.tar.gz
-#  register: zookeeper_archive
-#
-#- name: Copy and execute script
-#  script:
-#    cmd: /tmp/zookeeper_script.sh
-#  when: not zookeeper_archive.stat.exists
+- name: Check whether ZooKeeper is already installed
+  ansible.builtin.stat:
+    path: "{{ zookeeper_install_dir }}/bin/zkServer.sh"
+  register: zookeeper_installed
 
 - name: Download ZooKeeper archive
   ansible.builtin.get_url:
-    url: "https://archive.apache.org/dist/zookeeper/zookeeper-{{ zookeeper_version }}/apache-zookeeper-{{ zookeeper_version }}-bin.tar.gz"
-    dest: /opt
-    mode: 0644
+    url: "https://archive.apache.org/dist/zookeeper/zookeeper-{{ zookeeper_version }}/{{ zookeeper_archive_basename }}.tar.gz"
+    dest: "/opt/{{ zookeeper_archive_basename }}.tar.gz"
+    mode: '0644'
+  when: not zookeeper_installed.stat.exists
 
 - name: Extract ZooKeeper archive
   ansible.builtin.unarchive:
-    src: "/opt/apache-zookeeper-{{ zookeeper_version }}-bin.tar.gz"
+    src: "/opt/{{ zookeeper_archive_basename }}.tar.gz"
     dest: /opt
     remote_src: yes
-    creates: "/opt/apache-zookeeper-{{ zookeeper_version }}-bin"  # Use 'creates' to check if extraction is necessary
+  when: not zookeeper_installed.stat.exists
+
+- name: Rename the extracted directory to the target install directory
+  ansible.builtin.command:
+    cmd: "mv /opt/{{ zookeeper_archive_basename }} {{ zookeeper_install_dir }}"
+    # Evita che un'installazione parziale finisca annidata dentro se stessa.
+    creates: "{{ zookeeper_install_dir }}"
+  when:
+    - not zookeeper_installed.stat.exists
+    - zookeeper_archive_basename != zookeeper_install_dir | basename
 
 - name: Create symbolic link
   ansible.builtin.file:
-    src: "/opt/apache-zookeeper-{{ zookeeper_version }}-bin"
-    dest: /opt/zookeeper
+    src: "{{ zookeeper_install_dir }}"
+    dest: "{{ zookeeper_home }}"
     state: link
 
 - name: Set ownership of ZooKeeper directory
   ansible.builtin.file:
-    path: "/opt/apache-zookeeper-{{ zookeeper_version }}-bin"
+    path: "{{ zookeeper_install_dir }}"
     state: directory
     owner: zookeeper
     group: zookeeper
@@ -45,21 +44,21 @@
 
 - name: Copy zoo.cfg from zoo_sample.cfg
   ansible.builtin.command:
-    cmd: cp /opt/zookeeper/conf/zoo_sample.cfg /opt/zookeeper/conf/zoo.cfg
+    cmd: "cp {{ zookeeper_home }}/conf/zoo_sample.cfg {{ zookeeper_home }}/conf/zoo.cfg"
   args:
-    creates: /opt/zookeeper/conf/zoo.cfg  # Use 'creates' to check if copying is necessary
+    creates: "{{ zookeeper_home }}/conf/zoo.cfg"  # Use 'creates' to check if copying is necessary
 
-- name: Update content of /opt/zookeeper/conf/zoo.cfg
+- name: Update content of zoo.cfg
   template:
     src: "zoo.cfg.j2"
-    dest: "/opt/zookeeper/conf/zoo.cfg"
+    dest: "{{ zookeeper_home }}/conf/zoo.cfg"
+    owner: zookeeper
+    group: zookeeper
     backup: true
-  #vars:
-  #  zookeeper_servers: "{{ zookeeper_servers }}"
 
 - name: Create path for myid file
   ansible.builtin.file:
-    path: "/opt/zookeeper/data/zookeeper"
+    path: "{{ zookeeper_data_dir }}"
     state: directory
     owner: zookeeper
     group: zookeeper
@@ -67,7 +66,7 @@
 - name: Populate myid
   template:
     src: myid.j2
-    dest: "/opt/zookeeper/data/zookeeper/myid"
+    dest: "{{ zookeeper_data_dir }}/myid"
     owner: zookeeper
     group: zookeeper
 
@@ -81,6 +80,9 @@
   notify:
     - Reload systemd  # Notify the handler to reload systemd after creating the service file
 
+- name: Flush handlers so systemd is reloaded before the service is started
+  ansible.builtin.meta: flush_handlers
+
 - name: Start zookeeper service
   ansible.builtin.systemd:
     name: zookeeper
@@ -90,4 +92,3 @@
   ansible.builtin.systemd:
     name: zookeeper
     enabled: true
-

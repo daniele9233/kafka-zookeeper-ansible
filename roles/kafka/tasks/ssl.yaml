@@ -1,0 +1,198 @@
+---
+# Root CA interna e certificati X.509 dei broker.
+#
+# Nel documento di riferimento il Nodo 1 svolge il ruolo di "Master CA" e i
+# CSR degli altri nodi gli vengono inviati via scp. Qui lo stesso flusso e'
+# eseguito dal controller Ansible: le chiavi private dei broker non lasciano
+# mai il nodo che le genera, viaggiano solo CSR e certificati firmati.
+
+# ---------------------------------------------------------------------------
+# 1. Configurazione Root CA interna (sul controller Ansible)
+# ---------------------------------------------------------------------------
+
+- name: Create the local Root CA directory
+  ansible.builtin.file:
+    path: "{{ kafka_local_ca_dir }}/ca"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Generate the Root CA private key
+  ansible.builtin.command:
+    cmd: "openssl genrsa -out {{ kafka_local_ca_dir }}/ca/ca.key {{ kafka_ca_key_size }}"
+    creates: "{{ kafka_local_ca_dir }}/ca/ca.key"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Restrict the permissions of the Root CA private key
+  ansible.builtin.file:
+    path: "{{ kafka_local_ca_dir }}/ca/ca.key"
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Generate the Root CA certificate
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -x509 -new -nodes
+      -key {{ kafka_local_ca_dir }}/ca/ca.key
+      -sha256
+      -days {{ kafka_ca_validity_days }}
+      -out {{ kafka_local_ca_dir }}/ca/ca.crt
+      -subj "{{ kafka_ca_subject }}"
+    creates: "{{ kafka_local_ca_dir }}/ca/ca.crt"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# ---------------------------------------------------------------------------
+# 2. Generazione e firma dei certificati per i broker
+# ---------------------------------------------------------------------------
+
+- name: Create the SSL directories on the broker
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: kafka
+    group: kafka
+    mode: '0750'
+  loop:
+    - "{{ kafka_ssl_dir_physical }}"
+    - "{{ kafka_ssl_dir_physical }}/ca"
+    - "{{ kafka_broker_ssl_dir_physical }}"
+
+- name: Distribute the Root CA certificate to the broker
+  ansible.builtin.copy:
+    src: "{{ kafka_local_ca_dir }}/ca/ca.crt"
+    dest: "{{ kafka_ssl_dir_physical }}/ca/ca.crt"
+    owner: kafka
+    group: kafka
+    mode: '0644'
+
+- name: Generate the broker private key
+  ansible.builtin.command:
+    cmd: "openssl genrsa -out {{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.key {{ kafka_broker_key_size }}"
+    creates: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.key"
+
+- name: Restrict the permissions of the broker private key
+  ansible.builtin.file:
+    path: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.key"
+    owner: kafka
+    group: kafka
+    mode: '0600'
+
+- name: Create the SAN extension file
+  ansible.builtin.template:
+    src: broker.ext.j2
+    dest: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.ext"
+    owner: kafka
+    group: kafka
+    mode: '0640'
+
+- name: Generate the broker CSR
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -new
+      -key {{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.key
+      -out {{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.csr
+      -subj "{{ kafka_broker_subject }}"
+    creates: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.csr"
+
+- name: Restrict the permissions of the broker CSR
+  ansible.builtin.file:
+    path: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.csr"
+    owner: kafka
+    group: kafka
+    mode: '0640'
+
+- name: Create the per-broker directory on the CA host
+  ansible.builtin.file:
+    path: "{{ kafka_local_ca_dir }}/{{ inventory_hostname }}"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+
+- name: Retrieve the CSR and the SAN extension file for signing
+  ansible.builtin.fetch:
+    src: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.{{ item }}"
+    dest: "{{ kafka_local_ca_dir }}/{{ inventory_hostname }}/{{ kafka_broker_name }}.{{ item }}"
+    flat: true
+  loop:
+    - csr
+    - ext
+
+# 'throttle' evita che piu' firme concorrenti corrompano il file ca.srl.
+- name: Sign the broker certificate with the Root CA
+  ansible.builtin.command:
+    cmd: >-
+      openssl x509 -req
+      -in {{ kafka_local_ca_dir }}/{{ inventory_hostname }}/{{ kafka_broker_name }}.csr
+      -CA {{ kafka_local_ca_dir }}/ca/ca.crt
+      -CAkey {{ kafka_local_ca_dir }}/ca/ca.key
+      -CAcreateserial
+      -out {{ kafka_local_ca_dir }}/{{ inventory_hostname }}/{{ kafka_broker_name }}.crt
+      -days {{ kafka_cert_validity_days }}
+      -sha256
+      -extfile {{ kafka_local_ca_dir }}/{{ inventory_hostname }}/{{ kafka_broker_name }}.ext
+    creates: "{{ kafka_local_ca_dir }}/{{ inventory_hostname }}/{{ kafka_broker_name }}.crt"
+  delegate_to: localhost
+  become: false
+  throttle: 1
+
+- name: Deliver the signed certificate to the broker
+  ansible.builtin.copy:
+    src: "{{ kafka_local_ca_dir }}/{{ inventory_hostname }}/{{ kafka_broker_name }}.crt"
+    dest: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.crt"
+    owner: kafka
+    group: kafka
+    mode: '0644'
+  notify:
+    - Restart kafka
+
+# ---------------------------------------------------------------------------
+# 3. Creazione keystore e truststore PKCS12 (JVM)
+# ---------------------------------------------------------------------------
+
+- name: Create the PKCS12 keystore
+  ansible.builtin.command:
+    cmd: >-
+      openssl pkcs12 -export
+      -in {{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.crt
+      -inkey {{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.key
+      -certfile {{ kafka_ssl_dir_physical }}/ca/ca.crt
+      -name kafka-{{ kafka_broker_name }}
+      -out {{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.keystore.p12
+      -passout pass:{{ kafka_ssl_password }}
+    creates: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.keystore.p12"
+  notify:
+    - Restart kafka
+
+- name: Create the PKCS12 truststore with the Root CA
+  ansible.builtin.command:
+    cmd: >-
+      {{ java_home }}/bin/keytool -importcert -trustcacerts -noprompt
+      -alias {{ kafka_truststore_alias }}
+      -file {{ kafka_ssl_dir_physical }}/ca/ca.crt
+      -keystore {{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.truststore.p12
+      -storetype PKCS12
+      -storepass {{ kafka_ssl_password }}
+    creates: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.truststore.p12"
+  notify:
+    - Restart kafka
+
+# Regola permessi: 600 su tutti i file .p12 per impedire letture non
+# autorizzate della chiave privata.
+- name: Restrict the permissions of the PKCS12 stores
+  ansible.builtin.file:
+    path: "{{ kafka_broker_ssl_dir_physical }}/{{ kafka_broker_name }}.{{ item }}.p12"
+    owner: kafka
+    group: kafka
+    mode: '0600'
+  loop:
+    - keystore
+    - truststore

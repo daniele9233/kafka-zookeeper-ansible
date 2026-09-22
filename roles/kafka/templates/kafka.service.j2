@@ -9,8 +9,9 @@ Type=simple
 PIDFile=/var/run/kafka.pid
 User=kafka
 Group=kafka
-ExecStart=/opt/kafka/bin/kafka-server-start.sh /opt/kafka/config/server.properties
-ExecStop=/opt/kafka/bin/kafka-server-stop.sh
+Environment=JAVA_HOME={{ java_home }}
+ExecStart={{ kafka_home }}/bin/kafka-server-start.sh {{ kafka_home }}/config/server.properties
+ExecStop={{ kafka_home }}/bin/kafka-server-stop.sh
 Restart=on-failure
 SyslogIdentifier=kafka
 

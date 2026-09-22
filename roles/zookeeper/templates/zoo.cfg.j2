@@ -1,10 +1,10 @@
 tickTime=2000
 initLimit=10
 syncLimit=5
-dataDir=/opt/zookeeper/data/zookeeper
-clientPort=2181
+dataDir={{ zookeeper_data_dir }}
+clientPort={{ zookeeper_client_port }}
 4lw.commands.whitelist=mntr,conf,ruok
 
 {% for server in zookeeper_servers %}
-server.{{ loop.index }}={{ server }}:2888:3888
+server.{{ loop.index }}={{ server }}:{{ zookeeper_peer_port }}:{{ zookeeper_election_port }}
 {% endfor %}

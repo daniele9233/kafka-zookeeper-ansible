@@ -1,0 +1,7 @@
+# Root CA e certificati generati dal controller Ansible: non vanno versionati
+pki/
+*.key
+*.csr
+*.crt
+*.srl
+*.p12

@@ -24,3 +24,15 @@ group.id={{ kafka_group_id }}
 # What to do when there is no initial offset in Kafka or if the current
 # offset does not exist any more on the server: latest, earliest, none
 #auto.offset.reset=
+
+############################# Security #############################
+
+security.protocol={{ kafka_security_protocol }}
+sasl.mechanism={{ kafka_sasl_mechanism }}
+sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required \
+  username="{{ kafka_sasl_admin_user }}" \
+  password="{{ kafka_sasl_admin_password }}";
+
+ssl.truststore.location={{ kafka_broker_ssl_dir }}/{{ kafka_broker_name }}.truststore.p12
+ssl.truststore.password={{ kafka_ssl_password }}
+ssl.truststore.type=PKCS12

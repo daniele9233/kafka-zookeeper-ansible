@@ -1,0 +1,24 @@
+---
+
+- name: Create kafka service
+  template:
+    src: kafka.service.j2
+    dest: /etc/systemd/system/kafka.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd  # Notify the handler to reload systemd after creating the service file
+
+- name: Flush handlers so systemd is reloaded before the service is started
+  ansible.builtin.meta: flush_handlers
+
+- name: Start kafka service
+  ansible.builtin.systemd:
+    name: kafka
+    state: started
+
+- name: Enable the kafka service to start on boot
+  ansible.builtin.systemd:
+    name: kafka
+    enabled: true

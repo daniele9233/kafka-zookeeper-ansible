@@ -3,3 +3,10 @@
 - name: Reload systemd
   ansible.builtin.systemd:
     daemon_reload: yes
+
+# I notify emessi durante l'installazione vengono consumati dal
+# 'flush_handlers' di service.yaml, quindi l'unit systemd esiste gia'.
+- name: Restart kafka
+  ansible.builtin.systemd:
+    name: kafka
+    state: restarted

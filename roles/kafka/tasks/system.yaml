@@ -17,6 +17,11 @@
     name: bash-com*
     state: present
 
+- name: Installa openssl (necessario per la generazione di CSR, certificati e PKCS12)
+  apt:
+    name: openssl
+    state: present
+
 - name: Add kafka user
   user:
     name: kafka

@@ -1,29 +1,49 @@
 broker.id={{ broker_id }}
 
-listeners=PLAINTEXT://{{ hostvars[inventory_hostname]['ansible_host'] }}:9092
-advertised.listeners=PLAINTEXT://{{ hostvars[inventory_hostname]['ansible_host'] }}:9092
+listeners={{ kafka_security_protocol }}://{{ ansible_host }}:{{ kafka_broker_port }}
+advertised.listeners={{ kafka_security_protocol }}://{{ ansible_host }}:{{ kafka_broker_port }}
+listener.security.protocol.map={{ kafka_security_protocol }}:{{ kafka_security_protocol }}
+
+sasl.enabled.mechanisms={{ kafka_sasl_mechanism }}
+sasl.mechanism.inter.broker.protocol={{ kafka_sasl_mechanism }}
+inter.broker.listener.name={{ kafka_security_protocol }}
+
+listener.name.{{ kafka_security_protocol | lower }}.{{ kafka_sasl_mechanism | lower }}.sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required \
+  username="{{ kafka_sasl_admin_user }}" \
+  password="{{ kafka_sasl_admin_password }}";
+
+ssl.keystore.location={{ kafka_broker_ssl_dir }}/{{ kafka_broker_name }}.keystore.p12
+ssl.keystore.password={{ kafka_ssl_password }}
+ssl.key.password={{ kafka_ssl_password }}
+ssl.keystore.type=PKCS12
+
+ssl.truststore.location={{ kafka_broker_ssl_dir }}/{{ kafka_broker_name }}.truststore.p12
+ssl.truststore.password={{ kafka_ssl_password }}
+ssl.truststore.type=PKCS12
 
 num.network.threads=3
 num.io.threads=8
 socket.send.buffer.bytes=102400
 socket.receive.buffer.bytes=102400
 socket.request.max.bytes=104857600
-log.dirs=/opt/kafka/kafka-logs
-num.partitions=3
-default.replication.factor=3
-min.insync.replicas=2
+
+log.dirs={{ kafka_log_dirs }}
+num.partitions={{ kafka_num_partitions }}
 num.recovery.threads.per.data.dir=1
-offsets.topic.replication.factor=3
-transaction.state.log.replication.factor=3
-transaction.state.log.min.isr=2
 log.flush.interval.messages=10000
+log.flush.scheduler.interval.ms=1000
 log.retention.hours=168
 log.retention.check.interval.ms=300000
-#zookeeper.connect=10.206.129.126:2181,10.206.129.79:2181,10.206.129.90:2181
-#zookeeper.connect={{ groups['zookeeper'] | map('extract', hostvars, ['ansible_host']) | list | join(',') }}
+
+offsets.topic.replication.factor={{ kafka_default_replication_factor }}
+default.replication.factor={{ kafka_default_replication_factor }}
+min.insync.replicas={{ kafka_min_insync_replicas }}
+
+transaction.state.log.replication.factor={{ kafka_default_replication_factor }}
+transaction.state.log.min.isr={{ kafka_min_insync_replicas }}
+
 zookeeper.connect={{ zookeeper_connect_servers }}
 zookeeper.connection.timeout.ms=18000
 group.initial.rebalance.delay.ms=0
 controlled.shutdown.max.retries=3
 controlled.shutdown.retry.backoff.ms=5000
-log.flush.scheduler.interval.ms=1000
